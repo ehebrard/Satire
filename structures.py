@@ -27,8 +27,6 @@
 
 
 from array import *
-# import heapq
-# from heapq import heappush, heappop
         
 ################################################
 ########  IMPLEMENTATION OF SPARSE SET  ########
@@ -130,160 +128,17 @@ class BeliefBase:
         print 'ok'
 ################################################
 
-## heap is the list (in heap order) of entries [prio,elt], elt must be an int 
-## index gives the current position of an element in the heap
 
 from itertools import islice, count, imap, izip, tee, chain
 from operator import itemgetter
 
 
-# def cmp_gt(x, y):
-#     # Use __gt__ if available; otherwise, try __ge__.
-#     # In Py3.x, only __gt__ will be called.
-#     return (x > y) #if hasattr(x, '__gt__') else (not y <= x)
-#
-# class Heap(list):
-#     def __init__(self, data):
-#         """docstring for __init__"""
-#         list.__init__(self, [[prio, item] for item,prio in enumerate(data)])
-#         self._index = array.array('i',range(len(self)))
-#         self._prio = array.array('d',data)
-#         self.heapify()
-#
-#     def heappush(self, entry):
-#         """Push item onto heap, maintaining the heap invariant."""
-#         self.append(entry)
-#         self._siftdown(0, len(self)-1)
-#
-#     def __setitem__(self, item, prio):
-#         pos = self._index[item]
-#         self[pos][0] = prio
-#         self._prio[item] = prio
-#         self._siftdown(0, pos)
-#         return self
-#
-#     def heappop(self):
-#         """Pop the smallest item off the heap, maintaining the heap invariant."""
-#         lastelt = self.pop()    # raises appropriate IndexError if heap is empty
-#         if self:
-#             returnitem = self[0]
-#             list.__setitem__(self,0,lastelt)
-#             self._siftup(0)
-#         else:
-#             returnitem = lastelt
-#         return returnitem[1]
-#
-#     def heapify(self):
-#         """Transform list into a heap, in-place, in O(len(x)) time."""
-#         n = len(self)
-#         # Transform bottom-up.  The largest index there's any point to looking at
-#         # is the largest with a child index in-range, so must have 2*i + 1 < n,
-#         # or i < (n-1)/2.  If n is even = 2*j, this is (2*j-1)/2 = j-1/2 so
-#         # j-1 is the largest, which is n//2 - 1.  If n is odd = 2*j+1, this is
-#         # (2*j+1-1)/2 = j so j-1 is the largest, and that's again n//2-1.
-#         for i in reversed(xrange(n//2)):
-#             self._siftup(i)
-#
-#     # 'heap' is a heap at all indices >= startpos, except possibly for pos.  pos
-#     # is the index of a leaf with a possibly out-of-order value.  Restore the
-#     # heap invariant.
-#     def _siftdown(self, startpos, pos):
-#         newitem = self[pos]
-#         # Follow the path to the root, moving parents down until finding a place
-#         # newitem fits.
-#         while pos > startpos:
-#             parentpos = (pos - 1) >> 1
-#             parent = self[parentpos]
-#             if cmp_gt(newitem, parent):
-#                 list.__setitem__(self,pos,parent)
-#                 self._index[parent[1]] = pos
-#                 pos = parentpos
-#                 continue
-#             break
-#         list.__setitem__(self,pos,newitem)
-#         self._index[newitem[1]] = pos
-#
-#
-#     # The child indices of heap index pos are already heaps, and we want to make
-#     # a heap at index pos too.  We do this by bubbling the smaller child of
-#     # pos up (and so on with that child's children, etc) until hitting a leaf,
-#     # then using _siftdown to move the oddball originally at index pos into place.
-#     #
-#     # We *could* break out of the loop as soon as we find a pos where newitem <=
-#     # both its children, but turns out that's not a good idea, and despite that
-#     # many books write the algorithm that way.  During a heap pop, the last array
-#     # element is sifted in, and that tends to be large, so that comparing it
-#     # against values starting from the root usually doesn't pay (= usually doesn't
-#     # get us out of the loop early).  See Knuth, Volume 3, where this is
-#     # explained and quantified in an exercise.
-#     #
-#     # Cutting the # of comparisons is important, since these routines have no
-#     # way to extract "the priority" from an array element, so that intelligence
-#     # is likely to be hiding in custom __cmp__ methods, or in array elements
-#     # storing (priority, record) tuples.  Comparisons are thus potentially
-#     # expensive.
-#     #
-#     # On random arrays of length 1000, making this change cut the number of
-#     # comparisons made by heapify() a little, and those made by exhaustive
-#     # heappop() a lot, in accord with theory.  Here are typical results from 3
-#     # runs (3 just to demonstrate how small the variance is):
-#     #
-#     # Compares needed by heapify     Compares needed by 1000 heappops
-#     # --------------------------     --------------------------------
-#     # 1837 cut to 1663               14996 cut to 8680
-#     # 1855 cut to 1659               14966 cut to 8678
-#     # 1847 cut to 1660               15024 cut to 8703
-#     #
-#     # Building the heap by using heappush() 1000 times instead required
-#     # 2198, 2148, and 2219 compares:  heapify() is more efficient, when
-#     # you can use it.
-#     #
-#     # The total compares needed by list.sort() on the same lists were 8627,
-#     # 8627, and 8632 (this should be compared to the sum of heapify() and
-#     # heappop() compares):  list.sort() is (unsurprisingly!) more efficient
-#     # for sorting.
-#
-#     def _siftup(self, pos):
-#         endpos = len(self)
-#         startpos = pos
-#         newitem = self[pos]
-#         # Bubble up the smaller child until hitting a leaf.
-#         childpos = 2*pos + 1    # leftmost child position
-#         while childpos < endpos:
-#             # Set childpos to index of smaller child.
-#             rightpos = childpos + 1
-#             if rightpos < endpos and not cmp_gt(self[childpos], self[rightpos]):
-#                 childpos = rightpos
-#             # Move the smaller child up.
-#             list.__setitem__(self,pos,self[childpos])
-#             self._index[self[pos][1]] = pos
-#             pos = childpos
-#             childpos = 2*pos + 1
-#         # The leaf at pos is empty now.  Put newitem there, and bubble it up
-#         # to its final resting place (by sifting its parents down).
-#         list.__setitem__(self,pos,newitem)
-#         self._index[newitem[1]] = pos
-#         self._siftdown(startpos, pos)
-#
-#
-#     def scalePriority(self, div, mul):
-#         """docstring for scalePriority"""
-#         for i in range(len(self)):
-#             self[i][0] = self[i][0] * mul / div
-#
-#
-#
-#
-#
-#
-# ################################################
-#
-
-
-
 ###################################################################################
 ########  HEAP OF INTEGER IN [0..n-1] ORDERED BY FLOATING POINT PRIORITIES ########
 ###################################################################################
+## heap is the list (in heap order) of entries [prio,elt], elt must be an int 
+## index gives the current position of an element in the heap
+## prio gives the priority of an item (used for ordering)
 class ActivityHeap(array):
     def __new__(cls, data):
         """docstring for __init__"""
@@ -444,9 +299,7 @@ class ActivityHeap(array):
             idx = self._index[item]
             if idx>=0 and item not in itemset:
                 print 'wrong membership!'
-                sys.exit(1)
-            
-            
+                sys.exit(1)   
 ###################################################################################
 
 
