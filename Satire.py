@@ -307,6 +307,7 @@ class Solver(ClauseBase,BeliefBase):
         
     def restartSearch(self, base=100, factor=1.2):
         """docstring for restartSearch"""
+        self.initActivity()
         rlimit = base
         outcome = UNDEF
         while outcome == UNDEF:
@@ -522,7 +523,6 @@ if __name__ == '__main__':
         cnffile = sys.argv[1]
     
     solver.read_dimacs(cnffile)
-    solver.initActivity()
     outcome = solver.restartSearch()
     
     print 'Satisfiable' if outcome == TRUE else 'Unsatisfiable' if outcome == FALSE else 'Unknown'
