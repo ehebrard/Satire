@@ -16,7 +16,6 @@ if __name__ == '__main__':
     
     solver.readDimacs(cnffile)
 
-    
     cProfile.run('solver.restartSearch()')
     
 

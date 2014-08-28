@@ -687,10 +687,6 @@ class Solver(ClauseBase,BeliefBase):
         return ostr 
         
 
-    ################################
-    ########  UTILS METHODS ########
-    ################################
-
 
 def cmdLineSolver():
     """
