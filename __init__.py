@@ -38,8 +38,8 @@ if __name__ == '__main__':
     if len(sys.argv)>1:
         cnffile = sys.argv[1]
 
-        solver.read_dimacs(cnffile)
-        outcome = solver.generate()
+        solver.readDimacs(cnffile)
+        outcome = solver.restartSearch()
         print 'Satisfiable' if outcome == _.TRUE else 'Unsatisfiable' if outcome == _.FALSE else 'Unknown'
         print solver.getStatistics()
         

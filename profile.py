@@ -14,7 +14,7 @@ if __name__ == '__main__':
     if len(sys.argv)>1:
         cnffile = sys.argv[1]
     
-    solver.read_dimacs(cnffile)
+    solver.readDimacs(cnffile)
 
     
     cProfile.run('solver.restartSearch()')
