@@ -108,9 +108,9 @@ class ClauseBase:
         return len(self.clauses)
             
     def __str__(self): 
-        return self.getWatchList(range(len(self._watcher_of)/2))
+        return self._str_watch_list(range(len(self._watcher_of)/2))
         
-    def getWatchList(self,atoms): 
+    def _str_watch_list(self,atoms): 
         ostr = ''
         for a in atoms:
             for spin in (0,1):
