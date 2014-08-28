@@ -46,6 +46,7 @@ class Clause(array):
           
 class ClauseBase:
     def __init__(self, num_atoms=DEFAULT_SIZE, clauses=[]):
+        self._status  = array('i')
         self._clauses = []
         self._learnts = []
         self._watcher_of = [array('I') for i in range(2*num_atoms)]
@@ -57,7 +58,10 @@ class ClauseBase:
         for i in range(len(self._watcher_of), n):
             self._watcher_of.append([])
         
-    def add_clause(self,clause):
+    def deactivateClause(self,cl_idx):
+        self._status[cl_idx] = TO_DEACTIVATE
+        
+    def addClause(self,clause):
         if len(clause)>1:
             max_lit = (clause[0] if clause[0]>clause[1] else clause[1])|1
             self.resize(max_lit+1)
@@ -67,6 +71,12 @@ class ClauseBase:
         self._watcher_of[clause[0]].append(len(self._clauses))
         self._watcher_of[clause[1]].append(len(self._clauses))
         self._clauses.append(clause)
+        self._status.append(ACTIVE)
+        
+    def _remove_watcher_(self, l, pos):
+        if pos < len(self._watcher_of[l])-1:
+            self._watcher_of[l][-1], self._watcher_of[l][pos] = self._watcher_of[l][pos], self._watcher_of[l][-1]
+        self._watcher_of[l].pop()
         
     def __len__(self):
         return len(self.clauses)
@@ -318,6 +328,7 @@ class Solver(ClauseBase,BeliefBase):
                     self.undo()
                 base = int(base * factor)
                 rlimit += base
+                self.forget()
         return outcome
         
                 
@@ -346,6 +357,32 @@ class Solver(ClauseBase,BeliefBase):
         
     def atom_truth(self, a):
         return self._truth[a] if self.known(a) else UNDEF
+        
+    def score(self, clause):
+        """docstring for score"""
+        return sum([self._activity[atom(l)] for l in clause])/(len(clause) * len(clause))
+
+    def forget(self, forgetfulness=0.8):
+        """docstring for forget"""
+        scores = [self.score(self._clauses[c]) for c in self._learnts]
+        visited = len(scores)-1        
+        max_sc = max(scores)
+        min_sc = min(scores)
+        gap = max_sc - min_sc
+        threshold = min_sc + forgetfulness * gap
+        
+        #invariant: the list learnts[:visited+1] has not been visited
+        #           the list learnts[visited+1:] should be kept
+        swap = False
+        while visited>=0:
+            # put the first non visited element at the back
+            if swap:
+                self._learnts[visited], self._learnts[-1] = self._learnts[-1], self._learnts[visited]
+            # check if should keep or remove it
+            if scores[visited]<threshold:
+                self.deactivateClause(self._learnts.pop())
+                swap = True
+            visited -= 1
         
     def infer(self, p, reason=None):
         a = atom(p)
@@ -413,54 +450,57 @@ class Solver(ClauseBase,BeliefBase):
         
     def update(self,old_watched):
         """update the watcheds when old_watched becomes false"""
-        cl_idx = 0
-        new_watch_list = array('I',[])
+        cl_idx = len(self._watcher_of[old_watched])-1
         conflict = None
-        for k in self._watcher_of[old_watched]:
-            clause = self._clauses[k]
-                        
-            # second = 0 if atom(old_watched) == atom(clause[1]) else 1
-            second = 0 if atom(old_watched) == atom(clause[1]) else 1
-            other_watched = clause[second]
-            
-            # check that the second watched is not known
-            valo = self.lit_truth(other_watched)
-                        
-            if valo != TRUE:
-                # look for a new watched to replace watched
-                new_watched = None
-                valn = UNDEF
-                j = len(clause)
-                while new_watched == None and j>2:
-                    j -= 1
-                    valn = self.lit_truth(clause[j])
-                                
-                    if valn != FALSE:
-                        # ok, we found a new watched
-                        new_watched = clause[j]  
-                        clause[1-second] = new_watched
-                        clause[j] = old_watched
-                        # self._watcher_of[old_watched].pop(cl_idx) # we don't do that here
-                        self._watcher_of[new_watched].append(k)
-                                    
-                if new_watched == None:
-                    # we could not find a new watched, so we prune 'second_watched'
-                    # print '  there is no new watcher',
-                    new_watch_list.append(k)
-                    if valo == FALSE:
-                        conflict = clause
-                    else:
-                        self.infer(other_watched, clause)
+        for k in reversed(self._watcher_of[old_watched]):
+            if len(self._status) != len(self._clauses):
+                print len(self._status), '!=', len(self._clauses)
+            if len(self._status) <= k:
+                print len(self._status), '<=', k
+            if self._status[k] == TO_DEACTIVATE:
+                self._remove_watcher_(old_watched,cl_idx)
             else:
-                new_watch_list.append(k)
-            cl_idx += 1
+            
+                clause = self._clauses[k]
+
+                # second = 0 if atom(old_watched) == atom(clause[1]) else 1
+                second = 0 if atom(old_watched) == atom(clause[1]) else 1
+                other_watched = clause[second]
+
+                # check that the second watched is not known
+                valo = self.lit_truth(other_watched)
+
+                if valo != TRUE:
+                    # look for a new watched to replace watched
+                    new_watched = None
+                    valn = UNDEF
+                    j = len(clause)
+                    while new_watched == None and j>2:
+                        j -= 1
+                        valn = self.lit_truth(clause[j])
+
+                        if valn != FALSE:
+                            # ok, we found a new watched
+                            new_watched = clause[j]
+                            clause[1-second] = new_watched
+                            clause[j] = old_watched
+                            # self._watcher_of[old_watched].pop(cl_idx) # we don't do that here
+                            self._watcher_of[new_watched].append(k)
+                            self._remove_watcher_(old_watched,cl_idx)
+
+                    if new_watched == None:
+                        # we could not find a new watched, so we prune 'second_watched'
+                        # print '  there is no new watcher',
+                        # new_watch_list.append(k)
+                        if valo == FALSE:
+                            conflict = clause
+                        else:
+                            self.infer(other_watched, clause)
+            cl_idx -= 1
             if conflict != None:
                 break
-        for k in self._watcher_of[old_watched][cl_idx:]:
-            new_watch_list.append(k)
-        self._watcher_of[old_watched] = new_watch_list
-        
         return conflict
+    
                         
     def __str__(self): 
         # ostr = 'clauses:\n'+ClauseBase.__str__(self)
@@ -500,6 +540,7 @@ class Solver(ClauseBase,BeliefBase):
                         # print 'unit', lit(int(data[0])), lit_to_str(lit(int(data[0])))
                         self.infer(lit(int(data[0])))
                         self._clauses.append(Clause([lit(int(p)) for p in data[:-1]]))
+                        self._status.append(INACTIVE)
                     else:
                         self._unchecked_add_(Clause([lit(int(p)) for p in data[:-1]]))
                 else:

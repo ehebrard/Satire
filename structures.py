@@ -346,28 +346,6 @@ if __name__ == '__main__':
         print a,q[a], '  ',
     print
 
-        
-    
-    
-    
-    
-
-
-    #heappush(q, 2.3)
-    # q.changePriority(3,1.9)
-
-    # q._entry_finder[1][0] = 1.9
-    # heapq._siftdown(q, q._entry_finder[1])
-
-    # print(inspect.getargspec(heapq._siftdown))
-
-    
-    # for a in q:
-    #      print a,
-    #  print
-    
-    # print q[0], q[1], q[2], q[3], q[4]
-
 
 
   
