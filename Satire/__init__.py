@@ -32,11 +32,16 @@ A simple CDCL solver in Python
 """
 
 import sys
+import signal
 
 from definitions import *
 from structures import *
 import statistics as stat
+
         
+def signal_handler(signal, frame):
+    print('\nInterrupted!')
+    sys.exit(0)        
         
 ########################################
 ######## CLAUSE AND CLAUSE BASE ########
@@ -50,6 +55,42 @@ class Clause(array):
         
     def __str__(self): 
         return '('+' '.join([lit_to_str(p) for p in self])+')'
+        
+    # def propagate(self, solver, old_watched, k, cl_idx):
+    #     # second = 0 if atom(old_watched) == atom(clause[1]) else 1
+    #     second = 0 if atom(old_watched) == atom(self[1]) else 1
+    #     other_watched = self[second]
+    #
+    #     # check that the second watched is not known
+    #     valo = solver.lit_truth(other_watched)
+    #
+    #     if valo != TRUE:
+    #         # look for a new watched to replace watched
+    #         new_watched = None
+    #         valn = UNDEF
+    #         j = len(self)
+    #         while new_watched == None and j>2:
+    #             j -= 1
+    #             valn = solver.lit_truth(self[j])
+    #
+    #             if valn != FALSE:
+    #                 # ok, we found a new watched
+    #                 new_watched = self[j]
+    #                 self[1-second] = new_watched
+    #                 self[j] = old_watched
+    #                 # self._watcher_of[old_watched].pop(cl_idx) # we don't do that here
+    #                 solver._watcher_of[new_watched].append(k)
+    #                 solver._remove_watcher_(old_watched,cl_idx)
+    #
+    #         if new_watched == None:
+    #             # we could not find a new watched, so we prune 'second_watched'
+    #             # print '  there is no new watcher',
+    #             # new_watch_list.append(k)
+    #             if valo == FALSE:
+    #                 return False
+    #             else:
+    #                 solver.infer(other_watched, self)
+    #     return True
           
 class ClauseBase:
     """
@@ -120,10 +161,81 @@ class ClauseBase:
                 ostr += '\n'
         return ostr
 ########################################
-    
-    
 
 
+# ################################
+# ########   CONSTRAINTS  ########
+# ################################
+# class Predicate:
+#     """
+#     a predicate has a value and a set of children on which it maintains some relation
+#     """
+#     def __init__(self, vars=[]):
+#         self.scope = vars
+#
+#     def propagate
+
+class CompactDomain:
+    def __init__(self, solver, lb, ub):
+        self._lb = lb
+        self._ub = ub
+        self._size = self._ub - self._lb + 1
+        self._value_offset = solver.getNumAtoms()
+        self._bound_offset = solver.getNumAtoms()+self._size
+        solver.resize(2*self._size+self._offset-1)
+        self._trail = array('i', [self._lb, self._ub, self._size, solver._level])
+        
+    def isVal(self,a):
+        return a<self._bound_offset
+        
+    def atom2value(self,a):
+        return a-self._value_offset+self._lb
+        
+    def atom2bound(self,a):
+        return a-self._bound_offset+self._lb
+        
+    def value2atom(self,v):
+        return v+self._value_offset-self._lb
+        
+    def bound2atom(self,v):
+        return v+self._bound_offset-self._lb
+        
+    def save(self,solver):
+        if self._trail[-1] != solver._level:
+            solver._notify_save(self)
+            self._trail.extend([self._lb, self._ub, self._size, solver._level])
+            
+    def restore(self,solver):
+        while self._trail[-1] >= solver._level:
+            self._trail.pop()
+            self._size = self._trail.pop()
+            self._ub   = self._trail.pop()
+            self._lb   = self._trail.pop()
+            
+    def getSize(self,solver):
+        return self._size
+        
+    def contain(self,solver,v):
+        return solver.truth(value2atom(v))
+        
+    # def propagate(self,solver,changes):
+        
+    
+        
+    
+        
+#
+# class DiscreteDomain:
+#     def __init__(self, solver, values):
+#         # values should be ordered
+#         self._lb = values[0]
+#         self._ub = values[-1]
+#         self._offset = solver.getNumAtoms()
+#         solver.resize(len(values)+self._offset)
+#         self._val2atom = array('I',range(self._ub - self._lb + 1))
+#         self._
+#
+    
     
 ################################
 ########  CDCL  SOLVER  ########
@@ -176,6 +288,12 @@ class Solver(ClauseBase,BeliefBase):
     ################################
     ########    INTERFACE   ########
     ################################  
+    def getNumAtoms(self):
+        """
+        returns the current number of atoms 
+        """
+        return self._num_atoms
+        
     def addClause(self,clause):
         """
         add a new clause to the data base
@@ -335,7 +453,7 @@ class Solver(ClauseBase,BeliefBase):
         self._truth[a]     = t
         self._reason[a]    = reason
         self._asg_level[a] = self._level
-        if (VERBOSE&DBG_SEARCH)>0:
+        if (VERBOSE&DBG_SEARCH)>0 or (VERBOSE&DBG_LEARNING)>0:
             print ''.join([' ' for i in range(self._level)]), 'infer', lit_to_str(literal(a,t)), '(reason='+str(reason)+') ['+str(self._level)+']'
     
     def save(self):
@@ -428,15 +546,13 @@ class Solver(ClauseBase,BeliefBase):
         cl_idx = len(self._watcher_of[old_watched])-1
         conflict = None
         for k in reversed(self._watcher_of[old_watched]):
-            if len(self._status) != len(self._clauses):
-                print len(self._status), '!=', len(self._clauses)
-            if len(self._status) <= k:
-                print len(self._status), '<=', k
             if self._status[k] == TO_DEACTIVATE:
                 self._remove_watcher_(old_watched,cl_idx)
             else:
             
                 clause = self._clauses[k]
+                
+                # conflict = None if clause.propagate(self,old_watched,k,cl_idx) else clause
 
                 # second = 0 if atom(old_watched) == atom(clause[1]) else 1
                 second = 0 if atom(old_watched) == atom(clause[1]) else 1
@@ -480,7 +596,7 @@ class Solver(ClauseBase,BeliefBase):
     ################################
     ######## LEARN & FORGET ########
     ################################
-    def learnFrom(self, conflict):
+    def learnFrom(self, conflict):    
         """
         analyzes conflict and returns a clause to explain it
         """
@@ -495,8 +611,8 @@ class Solver(ClauseBase,BeliefBase):
         idx_max_lit = 0
         while len(need_explaining)>1:
             if (VERBOSE&DBG_LEARNING)>0:
-                print "current clause:", [lit_to_str(l) for l in learned_clause[1:]]
-                print "yet to explain:", [lit_to_str(l) for l in need_explaining]
+                print "current clause:", '('+' '.join([lit_to_str(l) for l in learned_clause[1:]])+')'
+                print "yet to explain:", '('+' '.join([lit_to_str(l)+'|'+str(self._asg_level[atom(l)]) for l in need_explaining])+')'
             
             l = need_explaining.pop()
             a = atom(l)
@@ -513,7 +629,7 @@ class Solver(ClauseBase,BeliefBase):
                     if self._asg_level[a] > max_level:
                         max_level = self._asg_level[a]
                         idx_max_lit = len(learned_clause)
-                    learned_clause.append(opposite(l))
+                    learned_clause.append(opposite(literal(a,self._truth[a])))
                 elif self._reason[a] == None:
                     if (VERBOSE&DBG_LEARNING)>0:
                         print '  last decision'
@@ -528,10 +644,17 @@ class Solver(ClauseBase,BeliefBase):
                 
         a = atom(need_explaining[0])
         learned_clause[0] = opposite(literal(a,self._truth[a])) 
+        # if idx_max_lit > 1:
+        # learned_clause[1], learned_clause[idx_max_lit] = learned_clause[idx_max_lit], learned_clause[1]
          
         if (VERBOSE&DBG_LEARNING)>0:
             print 'learned', [lit_to_str(l) for l in learned_clause]
             print 'backjump', (self._level - max_level), 'levels'
+            
+            
+        # if len(self._clauses) == 1055:
+        #     print Clause(learned_clause)
+        #     sys.exit(1)
         
         return (self._level - max_level), learned_clause
         
@@ -551,7 +674,7 @@ class Solver(ClauseBase,BeliefBase):
         """
         return sum([self._activity[atom(l)] for l in clause])/(len(clause) * len(clause))
 
-    def forget(self, forgetfulness=0.8):
+    def forget(self, forgetfulness=0.6):
         """
         forgets every clause which score is below the "mean" (biased by forgetfulness in [0..1]) i.e.,
         - forgetfulness = 0: forgets nothing
@@ -586,6 +709,8 @@ class Solver(ClauseBase,BeliefBase):
         """
         check the current solution
         """ 
+        # for a in range(self._num_atoms):
+        #     print lit_to_str(literal(a, self._truth[a]),''), 0
         cl_idx = 0       
         for cl in self._clauses:
             satisfied = False
@@ -603,14 +728,14 @@ class Solver(ClauseBase,BeliefBase):
                     satisfied = True
                     break
             if not satisfied:
-                if VERBOSE>-1:
-                    print 'solution does not satisfy c'+str(cl_idx), cl
+                # if (VERBOSE&DBG_CHECK)>0:
+                print 'solution does not satisfy c'+str(cl_idx), cl
                 return False
             cl_idx += 1
                 
         for a in range(self._num_atoms):
             if self._truth[a] == UNDEF:
-                if VERBOSE>-1:
+                if (VERBOSE&DBG_CHECK)>0:
                     print 'invalid solution x'+str(a)+' is not assigned'
                 return False
             elif (VERBOSE&DBG_CHECK)>0:
@@ -676,8 +801,13 @@ class Solver(ClauseBase,BeliefBase):
     def _str__bb_(self): 
         ostr = ''
         rank = 1
+        cura = 0
         # for a in self._fact:
         for a in self._known[:self._size]:
+            while not self.known(cura):
+                cura += 1
+            ostr += str(cura+1).rjust(3)+' '+str(self._index[cura]+1).rjust(3)+' '+str(self._asg_level[cura]).rjust(3)+' '+str(self._reason[cura]).ljust(30)+' | '
+            cura += 1
             p = literal(a, self._truth[a])
             ostr += str(rank).rjust(3)+' '+str(self._asg_level[a]).rjust(3)+' '+lit_to_str(p).rjust(4)
             if self._reason[a] != None:
@@ -693,6 +823,7 @@ def cmdLineSolver():
     simple usage of the module: read a dimacs file and solve it
     """  
     solver = Solver()
+    signal.signal(signal.SIGINT, signal_handler)
     
     cnffile = 'unif-c500-v250-s1228594393.cnf'
     if len(sys.argv)>1:
@@ -705,7 +836,7 @@ def cmdLineSolver():
     print solver.getStatistics()   
     
 if __name__ == '__main__':
-     cmdLineSolver()   
+    cmdLineSolver()   
 
 
 ##  @}
