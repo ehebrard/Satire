@@ -23,6 +23,8 @@
 #
 #  The author may not be bothered electronically or otherwise
 
+import time
+
 
 ################################################
 ########  GENERIC CLASS FOR STATISTICS  ########
@@ -68,9 +70,28 @@ class Statistic:
             
 class StatNumLearnt(Statistic):
     def __init__(self, solver):
-        Statistic.__init__(self,'number of clauses learnt',0)
+        Statistic.__init__(self,'number of learnt clauses',0)
         self._solver = solver
         
     def update(self):
         self._value = len(self._solver._learnts)
+        
+class StatSizeLearnt(Statistic):
+    def __init__(self, solver):
+        Statistic.__init__(self,'size of learnt clauses',0)
+        self._solver = solver
+        self._averaged = False
+        
+    def update(self):
+        if not self._averaged:
+            self._value /= self._solver.num_conflict.getValue()
+            self._averaged = True
+            
+class StatRunTime(Statistic):
+    def __init__(self):
+        Statistic.__init__(self,'cpu time',0)
+        self.start = time.time()
+        
+    def update(self): 
+        self._value = int((time.time() - self.start)*1000)
 ################################################

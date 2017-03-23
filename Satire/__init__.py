@@ -267,6 +267,7 @@ class Solver(ClauseBase,BeliefBase):
         self.num_propag    = stat.Statistic('number of propagations', 0)
         self.num_learnt    = stat.StatNumLearnt(self)
         self.max_activity  = stat.Statistic('maximum activity', 0)
+        self.cpu_time      = stat.StatRunTime()
         
         # parameters
         self._activity_increment = 1e-100
@@ -313,7 +314,8 @@ class Solver(ClauseBase,BeliefBase):
         rlimit = base
         outcome = UNDEF
         while outcome == UNDEF:
-            print 'restart with limit', base, str(self.num_conflict)
+            self.cpu_time.update()
+            print 'restart with limit = %i -- %s -- %s'%(base, self.num_conflict, self.cpu_time)
             outcome = self.generate(conf_limit=rlimit)
             if outcome == UNDEF:
                 while self._level>0:
@@ -326,8 +328,9 @@ class Solver(ClauseBase,BeliefBase):
     def getStatistics(self):
         """
         returns a bunch of statistics
-        """     
-        return str(self.num_choice)+'\n'+str(self.num_learnt)+'\n'+str(self.num_conflict)+'\n'+str(self.num_propag)
+        """   
+        self.cpu_time.update()  
+        return str(self.num_choice)+'\n'+str(self.num_learnt)+'\n'+str(self.num_conflict)+'\n'+str(self.num_propag)+'\n'+str(self.cpu_time)
             
     def readDimacs(self, filename):
         """
@@ -335,17 +338,19 @@ class Solver(ClauseBase,BeliefBase):
         """
         self.comments = []
         cnffile = open(filename, 'r')
+        num_cl = 0
         for line in cnffile:
-            data = line.split()
-            if len(data)>0:
-                if data[0] != 'c':
-                    if data[0] == 'p':
-                        num_atoms = int(data[2])
-                        self.resize(num_atoms)
-                    else:
-                        self.addClause(Clause([lit(int(p)) for p in data[:-1]]))
-                else:
-                    self.comments.append(line)
+            if line.startswith('p') :
+                data = line.split()
+                num_atoms = int(data[2])
+                self.resize(num_atoms)
+                num_cl = int(data[3])
+            elif num_cl > 0:
+                data = line.split()
+                self.addClause(Clause([lit(int(p)) for p in data[:-1]]))
+                num_cl -= 1
+            else:
+                self.comments.append(line)
                                   
     def writeDimacs(self, filename):
         """
