@@ -33,6 +33,7 @@ A simple CDCL solver in Python
 
 import sys
 import signal
+import argparse
 
 from definitions import *
 from structures import *
@@ -273,6 +274,7 @@ class Solver(ClauseBase,BeliefBase):
         self._activity_increment = 1e-100
         self._activity_decay     = 1.1
         self._activity_bound     = 1e1000000
+        self._forgetfulness      = .6
         
     def resize(self, n):
         if n>self._num_atoms:
@@ -830,11 +832,16 @@ def cmdLineSolver():
     solver = Solver()
     signal.signal(signal.SIGINT, signal_handler)
     
-    cnffile = 'unif-c500-v250-s1228594393.cnf'
-    if len(sys.argv)>1:
-        cnffile = sys.argv[1]
+    parser = argparse.ArgumentParser(description='Minimalistic CDCL SAT solver')
     
-    solver.readDimacs(cnffile)
+    parser.add_argument('file',type=str,help='path to instance file')
+    parser.add_argument('--forget',type=float,default=0.6,help='Forgetfulness (0: keep every clause, 1: forget everything)')
+    
+    args = parser.parse_args()
+    
+    solver.readDimacs(args.file)
+    solver._forgetfulness = args.forget
+    
     outcome = solver.restartSearch()
     
     print 'Satisfiable' if outcome == TRUE else 'Unsatisfiable' if outcome == FALSE else 'Unknown'
