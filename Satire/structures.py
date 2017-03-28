@@ -58,9 +58,13 @@ class BeliefBase:
         self._iter += 1
         return self._known[self._iter-1]
         
-    def full(self):
+    # def full(self):
+    #     """docstring for full"""
+    #     return self._size == len(self._known)
+        
+    def num_choices(self):
         """docstring for full"""
-        return self._size == len(self._known)
+        return len(self._known) - self._size
          
     def resize(self, n):
         capacity = len(self._known)

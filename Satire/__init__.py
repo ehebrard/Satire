@@ -34,6 +34,7 @@ A simple CDCL solver in Python
 import sys
 import signal
 import argparse
+import random
 
 from definitions import *
 from structures import *
@@ -276,6 +277,22 @@ class Solver(ClauseBase,BeliefBase):
         self._activity_bound     = 1e1000000
         self._forgetfulness      = .6
         
+        # this is used to speed up randomization. Instead of drawing a random number at every decision, we draw randomly when will be the next non-optimal decision (randcounter, uniformly picked in [1/(2*_randomness), 3/(2*_randomness)])
+        self._randomness         = .05
+        self._randcounter        = 0
+        self._min_r              = 10
+        self._max_r              = 30
+        
+    def setRandom(self, r=.05, seed=12345) :
+        random.seed(seed)
+        self._randomness = r
+        self._min_r = int(1.0/(2.0*r))
+        self._max_r = int(3.0/(2.0*r))
+        
+        self._randcounter = random.randint(self._min_r, self._max_r)
+        
+        
+        
     def resize(self, n):
         if n>self._num_atoms:
             ClauseBase.resize(self,2*n)
@@ -446,6 +463,24 @@ class Solver(ClauseBase,BeliefBase):
             print '  ok!'
         return a
         
+    def mostActiveAtomRand(self):
+        """
+        returns the atom with highest activity not yet in the belief base, except roughly every 1/_randomness calls, where the second best is chosen instead
+        """
+        a = self.mostActiveAtom()
+        self._randcounter -= 1
+        
+        if self._randomness ==0 or self._randcounter > 0 or self.num_choices() == 1 :
+            return a
+            
+        b = self.mostActiveAtom()
+        self._activity.push(a)
+        
+        self._randcounter = self._randcounter = random.randint(self._min_r, self._max_r)
+        
+        return b
+
+        
         
     ################################
     ########     SEARCH     ########
@@ -497,11 +532,11 @@ class Solver(ClauseBase,BeliefBase):
             if conflict == None:
                 if (CHECKED&CHK_PROPAG)>0:
                     self.checkUnitPropag()
-                if self.full():
+                if self.num_choices() == 0:
                     outcome = TRUE
                 else:
                     self.save()
-                    decision = self.mostActiveAtom() #self.nextAtom()
+                    decision = self.mostActiveAtomRand() #self.mostActiveAtom() #self.nextAtom()
                     l = literal(decision, self._truth[decision])
                     self.infer(l)
                     self.num_choice += 1
@@ -836,11 +871,14 @@ def cmdLineSolver():
     
     parser.add_argument('file',type=str,help='path to instance file')
     parser.add_argument('--forget',type=float,default=0.6,help='Forgetfulness (0: keep every clause, 1: forget everything)')
+    parser.add_argument('--random',type=float,default=0.05,help='Randomness (probability of second-best decision)')
+    parser.add_argument('--seed',type=int,default=12345,help='Random seed')
     
     args = parser.parse_args()
     
     solver.readDimacs(args.file)
     solver._forgetfulness = args.forget
+    solver.setRandom(args.random, args.seed)
     
     outcome = solver.restartSearch()
     
